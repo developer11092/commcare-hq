@@ -1463,11 +1463,10 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
     @property
     @memoized
     def users_to_iterate(self):
-        if True: # toggles.EMWF_WORKER_ACTIVITY_REPORT.enabled(self.request.domain):
+        if toggles.EMWF_WORKER_ACTIVITY_REPORT.enabled(self.request.domain):
             user_query = EMWF.user_es_query(
                 self.domain, self.request.GET.getlist(EMWF.slug), self.request.couch_user
             )
-            return util.get_simplified_users(user_query, self.paginate)
         elif not self.group_ids:
             ret = [util._report_user_dict(u) for u in list(CommCareUser.by_domain(self.domain))]
             return ret
@@ -1766,6 +1765,40 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
             ),
         )
 
+    def _report_data_from_generator(self, single_user_row, unformat_row_fn):
+        export = self.rendered_as == 'export'
+        avg_datespan = self.avg_datespan
+
+        single_user_unformatted_row = unformat_row_fn(single_user_row)
+
+        # Not sure why these fields are missing, but going this jank fix for now:
+        single_user_unformatted_row[0]['user_id'] = single_user_unformatted_row[0]['_id']
+        single_user_unformatted_row[0]['group_ids'] = single_user_unformatted_row[0]['__group_ids']
+
+        case_owners = _get_owner_ids_from_users(single_user_unformatted_row)
+        user_ids = single_user_unformatted_row[0]['_id']
+
+        return WorkerActivityReportData(
+            avg_submissions_by_user=get_submission_counts_by_user(
+                self.domain, avg_datespan, user_ids=user_ids, export=export
+            ),
+            submissions_by_user=get_submission_counts_by_user(
+                self.domain, self.datespan, user_ids=user_ids, export=export
+            ),
+            active_cases_by_owner=get_active_case_counts_by_owner(
+                self.domain, self.datespan, self.case_types, owner_ids=case_owners, export=export
+            ),
+            total_cases_by_owner=get_total_case_counts_by_owner(
+                self.domain, self.datespan, self.case_types, owner_ids=case_owners, export=export
+            ),
+            cases_closed_by_user=get_case_counts_closed_by_user(
+                self.domain, self.datespan, self.case_types, user_ids=user_ids, export=export
+            ),
+            cases_opened_by_user=get_case_counts_opened_by_user(
+                self.domain, self.datespan, self.case_types, user_ids=user_ids, export=export
+            ),
+        )
+
     def _total_row(self, rows, report_data):
         total_row = [_("Total")]
         summing_cols = [1, 2, 4, 5]
@@ -1800,9 +1833,13 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
 
     @property
     def rows(self):
-        report_data = self._report_data()
+        if self.paginate and True: # toggles.EMWF_WORKER_ACTIVITY_REPORT.enabled(self.request.domain):
+            user_query = EMWF.user_es_query(
+                self.domain, self.request.GET.getlist(EMWF.slug), self.request.couch_user
+            )
+            return util.get_paginated_user_query(user_query)
 
-        rows = []
+        report_data = self._report_data()
         if self.view_by_groups:
             rows = self._rows_by_group(report_data)
         else:

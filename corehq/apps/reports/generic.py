@@ -381,6 +381,14 @@ class GenericReportView(object):
         return {}
 
     @property
+    def export_table_generator(self):
+        """
+            Intention: Override
+            Returns an export table generator for pagination.
+        """
+        return []
+
+    @property
     def export_table(self):
         """
             Intention: Override
@@ -649,7 +657,14 @@ class GenericReportView(object):
     @property
     def excel_response(self):
         file = io.BytesIO()
-        export_from_tables(self.export_table, file, self.export_format)
+        table_generator, unformat_row = self.export_table_generator
+        for single_user_row in table_generator:
+            dummy = 4
+            report_data_chunk = self._report_data_from_generator([single_user_row], unformat_row)
+            dummy = 4
+            # table = format_table(chunk)
+        table = self.export_table
+        export_from_tables(table, file, self.export_format)
         return file
 
     @property
@@ -983,6 +998,22 @@ class GenericTabularReport(GenericReportView):
             override = self.override_export_sheet_name
             self._export_sheet_name = override if isinstance(override, str) else self.name # unicode?
         return self._export_sheet_name
+
+    @property
+    def export_table_generator(self):
+        headers = self.headers
+
+        def _unformat_row(row):
+            def _unformat_val(val):
+                if isinstance(val, dict):
+                    return val.get('raw', val.get('sort_key', val))
+                return self._strip_tags(val)
+
+            return [_unformat_val(val) for val in row]
+
+        table = headers.as_export_table
+        row_generator = self.export_rows
+        return row_generator, _unformat_row
 
     @property
     def export_table(self):
