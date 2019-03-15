@@ -254,7 +254,8 @@ def get_simplified_users(user_es_query, paginate):
     matching users, sorted by username.
     """
     if paginate:
-        users = user_es_query.fields(SimplifiedUserInfo.ES_FIELDS).scroll()
+        users_query = user_es_query.fields(SimplifiedUserInfo.ES_FIELDS).scroll()
+        return users_query
     else:
         users = user_es_query.fields(SimplifiedUserInfo.ES_FIELDS).run().hits
     users = list(map(_report_user_dict, users))
