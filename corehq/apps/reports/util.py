@@ -248,12 +248,15 @@ def _report_user_dict(user):
         return info
 
 
-def get_simplified_users(user_es_query):
+def get_simplified_users(user_es_query, paginate):
     """
     Accepts an instance of UserES and returns SimplifiedUserInfo dicts for the
     matching users, sorted by username.
     """
-    users = user_es_query.fields(SimplifiedUserInfo.ES_FIELDS).run().hits
+    if paginate:
+        users = user_es_query.fields(SimplifiedUserInfo.ES_FIELDS).scroll()
+    else:
+        users = user_es_query.fields(SimplifiedUserInfo.ES_FIELDS).run().hits
     users = list(map(_report_user_dict, users))
     return sorted(users, key=lambda u: u['username_in_report'])
 

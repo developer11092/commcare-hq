@@ -1350,6 +1350,7 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
 
     fix_left_col = True
     emailable = True
+    paginate = True
 
     NO_FORMS_TEXT = ugettext_noop('None')
 
@@ -1466,7 +1467,7 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
             user_query = EMWF.user_es_query(
                 self.domain, self.request.GET.getlist(EMWF.slug), self.request.couch_user
             )
-            return util.get_simplified_users(user_query)
+            return util.get_simplified_users(user_query, self.paginate)
         elif not self.group_ids:
             ret = [util._report_user_dict(u) for u in list(CommCareUser.by_domain(self.domain))]
             return ret
