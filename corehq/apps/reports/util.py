@@ -257,7 +257,7 @@ def get_paginated_user_query(user_es_query):
     return users_query
 
 
-def get_simplified_users(user_es_query, paginate):
+def get_simplified_users(user_es_query):
     """
     Accepts an instance of UserES and returns SimplifiedUserInfo dicts for the
     matching users, sorted by username.

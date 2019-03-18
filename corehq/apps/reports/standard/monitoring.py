@@ -1351,6 +1351,8 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
     fix_left_col = True
     emailable = True
     paginate = True
+    preethi_rows_function = False
+    preethi_this_row = None
 
     NO_FORMS_TEXT = ugettext_noop('None')
 
@@ -1467,6 +1469,10 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
             user_query = EMWF.user_es_query(
                 self.domain, self.request.GET.getlist(EMWF.slug), self.request.couch_user
             )
+            if self.preethi_rows_function:
+                return user_query
+            else:
+                return util.get_simplified_users(user_query)
         elif not self.group_ids:
             ret = [util._report_user_dict(u) for u in list(CommCareUser.by_domain(self.domain))]
             return ret
@@ -1744,7 +1750,7 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
         case_owners = _get_owner_ids_from_users(self.users_to_iterate)
         user_ids = self.user_ids
 
-        return WorkerActivityReportData(
+        worker_activity_data = WorkerActivityReportData(
             avg_submissions_by_user=get_submission_counts_by_user(
                 self.domain, avg_datespan, user_ids=user_ids, export=export
             ),
@@ -1764,6 +1770,8 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
                 self.domain, self.datespan, self.case_types, user_ids=user_ids, export=export
             ),
         )
+
+        return worker_activity_data
 
     def _report_data_from_generator(self, single_user_row, unformat_row_fn):
         export = self.rendered_as == 'export'
@@ -1776,9 +1784,9 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
         single_user_unformatted_row[0]['group_ids'] = single_user_unformatted_row[0]['__group_ids']
 
         case_owners = _get_owner_ids_from_users(single_user_unformatted_row)
-        user_ids = single_user_unformatted_row[0]['_id']
+        user_ids = [single_user_unformatted_row[0]['_id']]
 
-        return WorkerActivityReportData(
+        worker_activity_data = WorkerActivityReportData(
             avg_submissions_by_user=get_submission_counts_by_user(
                 self.domain, avg_datespan, user_ids=user_ids, export=export
             ),
@@ -1798,6 +1806,8 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
                 self.domain, self.datespan, self.case_types, user_ids=user_ids, export=export
             ),
         )
+
+        return worker_activity_data
 
     def _total_row(self, rows, report_data):
         total_row = [_("Total")]
@@ -1833,20 +1843,23 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
 
     @property
     def rows(self):
-        if self.paginate and True: # toggles.EMWF_WORKER_ACTIVITY_REPORT.enabled(self.request.domain):
+        if self.paginate and self.preethi_rows_function: # toggles.EMWF_WORKER_ACTIVITY_REPORT.enabled(self.request.domain):
             user_query = EMWF.user_es_query(
                 self.domain, self.request.GET.getlist(EMWF.slug), self.request.couch_user
             )
             return util.get_paginated_user_query(user_query)
 
-        report_data = self._report_data()
-        if self.view_by_groups:
-            rows = self._rows_by_group(report_data)
         else:
-            rows = self._rows_by_user(report_data)
+            report_data = self._report_data()
 
-        self.total_row = self._total_row(rows, report_data)
-        return rows
+            rows = []
+            if self.view_by_groups:
+                rows = self._rows_by_group(report_data)
+            else:
+                rows = self._rows_by_user(report_data)
+
+            self.total_row = self._total_row(rows, report_data)
+            return rows
 
 
 def _get_raw_user_link(user, url, filter_class):

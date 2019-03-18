@@ -656,16 +656,27 @@ class GenericReportView(object):
 
     @property
     def excel_response(self):
-        file = io.BytesIO()
+        # First do it the old way self.preethi_rows_function should be False
+        self.preethi_rows_function = False
+
+        old_file = io.BytesIO()
+        export_from_tables(self.export_table, old_file, self.export_format)
+
+        # Then do it the new way
+        self.preethi_rows_function = True
         table_generator, unformat_row = self.export_table_generator
         for single_user_row in table_generator:
-            dummy = 4
+            new_file = io.BytesIO()
             report_data_chunk = self._report_data_from_generator([single_user_row], unformat_row)
+
+
+            # Write the report_data_chunk to the file.
+            self.preethi_this_row = report_data_chunk
+            formatted_data_row = self.preethi_export_table
+            export_from_tables(formatted_data_row, new_file, self.export_format)
             dummy = 4
-            # table = format_table(chunk)
-        table = self.export_table
-        export_from_tables(table, file, self.export_format)
-        return file
+
+        return new_file
 
     @property
     @request_cache(expiry=60 * 10)
@@ -1037,6 +1048,46 @@ class GenericTabularReport(GenericReportView):
 
         table = headers.as_export_table
         rows = [_unformat_row(row) for row in self.export_rows]
+        table.extend(rows)
+        if self.total_row:
+            table.append(_unformat_row(self.total_row))
+        if self.statistics_rows:
+            table.extend([_unformat_row(row) for row in self.statistics_rows])
+
+        return [[self.export_sheet_name, table]]
+
+    @property
+    def preethi_export_table(self):
+        """
+        Exports the report as excel.
+
+        When rendering a complex cell, it will assign a value in the following order:
+        1. cell['raw']
+        2. cell['sort_key']
+        3. str(cell)
+        """
+        headers = self.headers
+
+        def _unformat_row(row):
+            def _unformat_val(val):
+                if isinstance(val, dict):
+                    return val.get('raw', val.get('sort_key', val))
+                return self._strip_tags(val)
+
+            return [_unformat_val(val) for val in row]
+
+        table = headers.as_export_table
+
+        # Format the report data
+        rows = []
+        if self.view_by_groups:
+            formatted_rows = self._rows_by_group(self.preethi_this_row)
+        else:
+            formatted_rows = self._rows_by_user(self.preethi_this_row)
+
+        self.total_row = self._total_row(rows, self.preethi_this_row)
+
+        rows = [_unformat_row(row) for row in formatted_rows]
         table.extend(rows)
         if self.total_row:
             table.append(_unformat_row(self.total_row))
