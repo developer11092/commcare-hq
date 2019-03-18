@@ -1463,7 +1463,7 @@ class WorkerActivityReport(WorkerMonitoringCaseReportTableBase, DatespanMixin):
     @property
     @memoized
     def users_to_iterate(self):
-        if toggles.EMWF_WORKER_ACTIVITY_REPORT.enabled(self.request.domain):
+        if toggles.EMWF_WORKER_ACTIVITY_REPORT.enabled('icds-cas'): #self.request.domain):
             user_query = EMWF.user_es_query(
                 self.domain, self.request.GET.getlist(EMWF.slug), self.request.couch_user
             )
